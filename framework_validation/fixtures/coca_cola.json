@@ -1,0 +1,132 @@
+{
+  "case_id": "coca_cola",
+  "ticker": "KO",
+  "as_of": "2024-07-23T16:00:00-04:00",
+  "horizon": "medium",
+  "required_evidence_ids": ["ko-q2-results"],
+  "question": "At the July 23 NYSE close, what do Coca-Cola's Q2 results imply for its medium-term investment thesis and a holder's action?",
+  "evidence": [
+    {
+      "id": "ko-q2-results",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/21344/000002134424000037/a2024q2earningsreleaseex-9.htm",
+      "available_at": "2024-07-23T06:58:02-04:00",
+      "text": "Coca-Cola reported second-quarter net operating revenue of USD 12.363 billion, up 3% year over year. Organic revenue, a non-GAAP measure, rose 15% with price/mix up 9% and concentrate sales up 6%. Global unit case volume rose 2%. GAAP operating income rose 10%; GAAP EPS fell 5% to USD 0.56 while comparable non-GAAP EPS rose 7% to USD 0.84.",
+      "metrics": {
+        "reported_revenue_usd_millions": 12363,
+        "reported_revenue_yoy_pct": 3,
+        "organic_revenue_yoy_pct": 15,
+        "price_mix_yoy_pct": 9,
+        "concentrate_sales_yoy_pct": 6,
+        "unit_case_volume_yoy_pct": 2,
+        "gaap_operating_income_yoy_pct": 10,
+        "gaap_eps_usd": 0.56,
+        "gaap_eps_yoy_pct": -5,
+        "comparable_eps_usd": 0.84,
+        "comparable_eps_yoy_pct": 7
+      }
+    },
+    {
+      "id": "ko-fy2024-guidance",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/21344/000002134424000037/a2024q2earningsreleaseex-9.htm",
+      "available_at": "2024-07-23T06:58:02-04:00",
+      "text": "Management updated full-year 2024 guidance to 9–10% organic revenue growth and 5–6% comparable EPS growth. Both are non-GAAP forecasts. Management expected currency to reduce comparable EPS growth by 8–9 percentage points.",
+      "metrics": {
+        "fy2024_organic_revenue_growth_low_pct": 9,
+        "fy2024_organic_revenue_growth_high_pct": 10,
+        "fy2024_comparable_eps_growth_low_pct": 5,
+        "fy2024_comparable_eps_growth_high_pct": 6,
+        "fy2024_comparable_eps_currency_headwind_low_pp": 8,
+        "fy2024_comparable_eps_currency_headwind_high_pp": 9
+      }
+    },
+    {
+      "id": "ko-regular-session-close",
+      "source_url": "https://birlingcapital.com/publications/GlobalMarketSquare.July23.2024.pdf",
+      "available_at": "2024-07-23T16:00:00-04:00",
+      "text": "NYSE-listed KO closed the July 23 U.S. regular session at USD 64.95, up USD 0.18 from the prior close. Availability refers to the market observation at the close. The cited contemporaneous market note reproduces the closing price.",
+      "metrics": {
+        "ko_close_usd": 64.95,
+        "ko_close_change_usd": 0.18
+      }
+    },
+    {
+      "id": "ko-sp500-close",
+      "source_url": "https://fred.stlouisfed.org/data/SP500",
+      "available_at": "2024-07-23T16:00:00-04:00",
+      "text": "The S&P 500 U.S. price index closed the regular session at 5,555.74 on July 23, 2024, versus 5,564.41 on July 22. Availability denotes the session close; the historical series is syndicated by FRED.",
+      "metrics": {
+        "sp500_close_index_points": 5555.74,
+        "sp500_previous_close_index_points": 5564.41
+      }
+    },
+    {
+      "id": "ko-stock-price-window",
+      "source_url": "https://query1.finance.yahoo.com/v8/finance/chart/KO?period1=1711929600&period2=1721779200&interval=1d&events=div%2Csplits",
+      "available_at": "2024-07-23T16:00:00-04:00",
+      "data_file": "coca_cola_market_60d.csv",
+      "text": "KO U.S. regular-session daily OHLCV for 60 trading sessions, 2024-04-26 through 2024-07-23, inclusive. Prices are Yahoo quote-series USD values rounded to cents; cash distributions are excluded and Yahoo reports no split in the fetched window. Returns use close-to-close observations. Availability refers to market observation dates; the archive may contain subsequent corrections. Yahoo's bar gives USD 64.96 on July 23; the contemporaneous Birling Capital note records USD 64.95. The series and derived price-return metrics use Yahoo's value consistently.",
+      "metrics": {
+        "sessions": 60,
+        "first_close": 61.74,
+        "last_close": 64.96,
+        "return_1_session_pct": 0.2933,
+        "return_5_sessions_pct": 1.0736,
+        "return_20_sessions_pct": 1.5476,
+        "return_59_sessions_pct": 5.2154,
+        "mean_close_20_sessions": 63.8675,
+        "mean_close_60_sessions": 63.1447,
+        "return_20_sessions_vs_sp500_pp": -0.4324,
+        "return_20_sessions_vs_sector_pp": 1.6118,
+        "cutoff_volume_shares": 11810300,
+        "preceding_20_sessions_mean_volume_shares": 11019975,
+        "cutoff_volume_vs_preceding_20_sessions_mean_ratio": 1.0717
+      }
+    },
+    {
+      "id": "ko-sector-price-window",
+      "source_url": "https://query1.finance.yahoo.com/v8/finance/chart/XLP?period1=1711929600&period2=1721779200&interval=1d&events=div%2Csplits",
+      "available_at": "2024-07-23T16:00:00-04:00",
+      "data_file": "coca_cola_market_60d.csv",
+      "text": "XLP (Consumer Staples Select Sector SPDR ETF, NYSE Arca) is the sector proxy. Its USD regular-session OHLCV aligns to the stock and S&P 500 dates, 2024-04-26 through 2024-07-23, inclusive. Returns use ETF market prices without cash distributions; XLP prices are not a sector index or fund NAV. Yahoo reports no split in the fetched window.",
+      "metrics": {
+        "sessions": 60,
+        "first_close": 75.59,
+        "last_close": 77.86,
+        "return_1_session_pct": -0.3583,
+        "return_5_sessions_pct": 0.1544,
+        "return_20_sessions_pct": -0.0642,
+        "return_59_sessions_pct": 3.003,
+        "mean_close_20_sessions": 77.3395,
+        "mean_close_60_sessions": 77.1577,
+        "return_20_sessions_vs_sp500_pp": -2.0442
+      }
+    },
+    {
+      "id": "ko-sp500-price-window",
+      "source_url": "https://fred.stlouisfed.org/data/SP500",
+      "available_at": "2024-07-23T16:00:00-04:00",
+      "data_file": "coca_cola_market_60d.csv",
+      "text": "S&P 500 daily regular-session closing price-index levels in index points, 2024-04-26 through 2024-07-23, inclusive. The 60 observations span 59 return intervals. The benchmark excludes dividends; stock and sector excess returns are percentage-point differences from the matching benchmark price return.",
+      "metrics": {
+        "sessions": 60,
+        "first_close": 5099.96,
+        "last_close": 5555.74,
+        "return_1_session_pct": -0.1558,
+        "return_5_sessions_pct": -1.9668,
+        "return_20_sessions_pct": 1.98,
+        "return_59_sessions_pct": 8.9369,
+        "mean_close_20_sessions": 5550.946,
+        "mean_close_60_sessions": 5374.047
+      }
+    }
+  ],
+  "missing_fields": [
+    "pre_release_consensus",
+    "portfolio_weight_cash_and_risk_limits"
+  ],
+  "mock_reviews": [
+    {
+      "issues": []
+    }
+  ]
+}

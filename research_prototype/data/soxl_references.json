@@ -1,0 +1,48 @@
+[
+  {
+    "id": "soxl-etf-issuer-terms",
+    "source_url": "https://www.direxion.com/product/daily-semiconductor-bull-bear-3x-etfs",
+    "available_at": "2026-11-12T06:02:55+00:00",
+    "collected_at": "2026-11-12T06:02:55+00:00",
+    "published_at": null,
+    "availability_basis": "official_page_manually_verified_via_web",
+    "category": "etf_product",
+    "observation_date": "2026-11-10",
+    "metrics": {
+      "daily_objective_multiple": 3,
+      "gross_expense_ratio_pct": 0.91,
+      "net_expense_ratio_pct": 0.75,
+      "issuer_reported_nav_usd": 55.93,
+      "issuer_reported_market_price_usd": 56.06
+    },
+    "text": "Direxion identifies SOXL as a daily long leveraged ETF targeting +300% of the NYSE Semiconductor Index before fees and expenses. The objective applies to one trading day. Daily resets make longer holding returns dependent on the sequence and volatility of index moves, rather than 3× the period return. The issuer page displayed gross and net annual expenses of 0.91% and 0.75%; some swap, financing and transaction costs can be outside the expense limit. The issuer's NAV and market price are both dated 2026-11-10; do not compare that NAV with a later quote. The page's index constituents and fund holdings are different concepts. Official page was manually captured; it is not a same-run issuer pricing feed."
+  },
+  {
+    "id": "soxl-sec-etf-prospectus",
+    "source_url": "https://www.sec.gov/Archives/edgar/data/1424958/000119312526078540/d50601d497k.htm",
+    "available_at": "2026-11-12T06:02:55+00:00",
+    "collected_at": "2026-11-12T06:02:55+00:00",
+    "published_at": null,
+    "availability_basis": "official_filing_manually_verified_via_web",
+    "category": "etf_prospectus",
+    "form": "497K",
+    "accession": "0001193125-26-078540",
+    "observation_date": "2026-02-27",
+    "metrics": {
+      "daily_objective_multiple": 3,
+      "gross_expense_ratio_pct": 0.91,
+      "net_expense_ratio_pct": 0.75
+    },
+    "text": "SEC EDGAR SOXL summary prospectus dated 2026-02-27. It documents the one-trading-day +300% NYSE Semiconductor Index target before fees, derivatives including swaps, concentration, compounding, imperfect daily correlation, and the risk of losing the entire investment in a single session. Published annual operating expense ratios in this filing were 0.91% gross and 0.75% net. This dated filing was manually verified; this record does not establish that no subsequent supplement exists."
+  },
+  {
+    "id": "soxl-soxx-proxy-description",
+    "source_url": "https://www.ishares.com/us/products/239705/ishares-semiconductor-etf-soxx",
+    "available_at": "2026-11-12T06:02:55+00:00",
+    "collected_at": "2026-11-12T06:02:55+00:00",
+    "published_at": null,
+    "availability_basis": "official_page_manually_verified_via_web",
+    "category": "etf_proxy",
+    "text": "iShares names the NYSE Semiconductor Index as the SOXX benchmark. The observed SOXX market-price series is an unlevered sector proxy, not the official index return series or either fund's NAV. It cannot establish whether SOXL met its formal daily tracking target."
+  }
+]

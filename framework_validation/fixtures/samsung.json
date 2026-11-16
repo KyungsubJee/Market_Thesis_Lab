@@ -1,0 +1,124 @@
+{
+  "case_id": "samsung",
+  "ticker": "005930",
+  "as_of": "2024-11-01T15:30:00+09:00",
+  "horizon": "medium",
+  "required_evidence_ids": ["samsung_q3_results"],
+  "question": "As of the 2024-11-01 KRX regular-session close, what medium-term outlook do Samsung Electronics' Q3 results and SK hynix's AI-memory disclosures support? Distinguish Samsung's observed earnings from assumptions about HBM3E adoption and quantify only what the supplied evidence supports.",
+  "evidence": [
+    {
+      "id": "samsung_q2_results",
+      "source_url": "https://news.samsung.com/global/samsung-electronics-announces-results-for-second-quarter-of-2024",
+      "available_at": "2024-08-01T09:00:00+09:00",
+      "text": "Samsung's 2024-07-31 release reported Q2 Device Solutions revenue of KRW 28.56 trillion and operating profit of KRW 6.45 trillion. Availability is conservatively recorded at the next KRX session open because the release provides a date rather than a time.",
+      "metrics": {
+        "ds_revenue_krw_trillion": 28.56,
+        "ds_operating_profit_krw_trillion": 6.45
+      }
+    },
+    {
+      "id": "samsung_q3_guidance",
+      "source_url": "https://news.samsung.com/global/samsung-electronics-announces-earnings-guidance-for-third-quarter-2024",
+      "available_at": "2024-10-10T09:00:00+09:00",
+      "text": "Samsung's 2024-10-08 preliminary Q3 guidance estimated consolidated revenue of approximately KRW 79 trillion and operating profit of approximately KRW 9.1 trillion. These are Samsung's estimates, distinct from analyst consensus. Availability is conservatively recorded at the next KRX session open because the release provides a date rather than a time.",
+      "metrics": {
+        "revenue_guidance_krw_trillion": 79,
+        "operating_profit_guidance_krw_trillion": 9.1
+      }
+    },
+    {
+      "id": "sk_hynix_q3_results",
+      "source_url": "https://news.skhynix.com/en/sk-hynix-announces-3q24-financial-results/",
+      "available_at": "2024-10-25T09:00:00+09:00",
+      "text": "SK hynix's Seoul-dated 2024-10-24 release reported preliminary Q3 revenue of KRW 17.5731 trillion and operating profit of KRW 7.03 trillion. HBM accounted for 30% of its DRAM revenue in Q3, and management projected 40% in Q4. Availability uses the session after the Seoul release date to avoid reliance on the page's differing header date and an unverified publication time.",
+      "metrics": {
+        "revenue_krw_trillion": 17.5731,
+        "operating_profit_krw_trillion": 7.03,
+        "q3_hbm_share_of_dram_revenue_pct": 30,
+        "q4_hbm_share_of_dram_revenue_forecast_pct": 40
+      }
+    },
+    {
+      "id": "samsung_q3_results",
+      "source_url": "https://news.samsung.com/global/samsung-electronics-announces-results-for-third-quarter-of-2024",
+      "available_at": "2024-11-01T09:00:00+09:00",
+      "text": "Samsung's 2024-10-31 release reported Q3 consolidated revenue of KRW 79.1 trillion and operating profit of KRW 9.18 trillion. Device Solutions reported revenue of KRW 29.27 trillion and operating profit of KRW 3.86 trillion. Samsung attributed part of the consolidated profit decline to one-time costs, including DS incentive provisions, and said it planned to expand HBM3E sales. Availability is conservatively recorded at the next KRX session open because the release provides a date rather than a time.",
+      "metrics": {
+        "revenue_krw_trillion": 79.1,
+        "operating_profit_krw_trillion": 9.18,
+        "ds_revenue_krw_trillion": 29.27,
+        "ds_operating_profit_krw_trillion": 3.86
+      }
+    },
+    {
+      "id": "samsung_60_session_market",
+      "source_url": "https://m.stock.naver.com/api/stock/005930/price?page=9&pageSize=60",
+      "available_at": "2024-11-01T15:30:00+09:00",
+      "data_file": "samsung_60_session_market.csv",
+      "text": "The accompanying CSV contains 60 aligned Korean exchange sessions from 2024-08-01 through 2024-11-01, inclusive. Samsung Electronics and KODEX Semicon are unadjusted regular-session KRW OHLC and shares traded. KOSPI is an OHLC price index in points. KODEX Semicon (091160) tracks the KRX Semicon index and is used here as a sector ETF proxy. The 60 closing observations span 59 close-to-close return intervals. All returns use raw closes and exclude dividends and distributions. Relative returns are percentage-point differences for matching intervals. Samsung cutoff volume is compared with the arithmetic mean of the preceding 20 sessions, excluding the cutoff session. These are closing observations retrieved from a historical vendor archive, with availability assigned to the regular-session close for this fixture. The source archive does not establish the historical API publication latency. Only bars dated through the cutoff were retained.",
+      "sources": {
+        "samsung_price_pages": [
+          "https://m.stock.naver.com/api/stock/005930/price?page=9&pageSize=60",
+          "https://m.stock.naver.com/api/stock/005930/price?page=10&pageSize=60"
+        ],
+        "kospi_price_range": "https://api.finance.naver.com/siseJson.naver?symbol=KOSPI&requestType=1&startTime=20240801&endTime=20241101&timeframe=day",
+        "kodex_semicon_price_pages": [
+          "https://m.stock.naver.com/api/stock/091160/price?page=9&pageSize=60",
+          "https://m.stock.naver.com/api/stock/091160/price?page=10&pageSize=60"
+        ],
+        "kodex_semicon_fund_mandate": "https://m.samsungfund.com/etf/product/view.do?id=2ETF07",
+        "cutoff_samsung_close_crosscheck": "https://rdata.kbsec.com/pdf_data/20241107073458490K.pdf",
+        "cutoff_kospi_close_crosscheck": "https://www.fnnews.com/news/202411011601512287"
+      },
+      "metrics": {
+        "session_count_including_cutoff": 60,
+        "samsung_cutoff_close_krw": 58300,
+        "samsung_cutoff_volume_shares": 19083180,
+        "kospi_cutoff_close_points": 2542.36,
+        "kodex_semicon_cutoff_close_krw": 32005,
+        "samsung_raw_price_return_1_session_pct": -1.5203,
+        "samsung_raw_price_return_5_sessions_pct": 4.2934,
+        "samsung_raw_price_return_20_sessions_pct": -4.894,
+        "samsung_raw_price_return_59_sessions_pct": -29.8436,
+        "kospi_raw_price_return_1_session_pct": -0.5395,
+        "kospi_raw_price_return_5_sessions_pct": -1.5837,
+        "kospi_raw_price_return_20_sessions_pct": -0.7546,
+        "kospi_raw_price_return_59_sessions_pct": -8.4718,
+        "kodex_semicon_raw_price_return_1_session_pct": -1.0359,
+        "kodex_semicon_raw_price_return_5_sessions_pct": -0.9746,
+        "kodex_semicon_raw_price_return_20_sessions_pct": -0.9899,
+        "kodex_semicon_raw_price_return_59_sessions_pct": -17.8938,
+        "samsung_raw_price_return_20_sessions_vs_kospi_pp": -4.1394,
+        "samsung_raw_price_return_20_sessions_vs_kodex_semicon_pp": -3.904,
+        "samsung_raw_price_return_59_sessions_vs_kospi_pp": -21.3717,
+        "samsung_raw_price_return_59_sessions_vs_kodex_semicon_pp": -11.9498,
+        "samsung_mean_volume_prior_20_sessions_shares": 26865149.2,
+        "samsung_cutoff_volume_vs_prior_20_sessions_mean_ratio": 0.7103
+      }
+    }
+  ],
+  "missing_fields": [
+    "krx_semicon_index_history (KODEX Semicon ETF proxy supplied)",
+    "point_in_time_vendor_publication_timestamps_for_daily_bars",
+    "dividend_adjusted_total_return_series",
+    "point_in_time_analyst_consensus",
+    "customer_level_hbm3e_qualification_and_order_timing"
+  ],
+  "mock_reviews": [
+    {
+      "issues": [
+        {
+          "id": "samsung_hbm3e_recovery_assumption",
+          "kind": "uncertain_assumption",
+          "material": true,
+          "claim": "A near-term Samsung HBM3E sales ramp and Device Solutions margin recovery would require customer qualification and orders. Samsung's expansion plan and SK hynix's observed sales mix provide useful context while leaving those Samsung-specific milestones unverified.",
+          "roles": ["fundamental"],
+          "evidence_ids": ["samsung_q2_results", "sk_hynix_q3_results", "samsung_q3_results"]
+        }
+      ]
+    },
+    {
+      "issues": []
+    }
+  ]
+}

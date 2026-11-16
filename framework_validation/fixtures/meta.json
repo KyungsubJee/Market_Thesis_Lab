@@ -1,0 +1,150 @@
+{
+  "case_id": "meta",
+  "ticker": "META",
+  "as_of": "2024-04-25T16:00:00-04:00",
+  "horizon": "medium",
+  "required_evidence_ids": ["meta-q1-results", "meta-ai-capex-guidance"],
+  "question": "At the April 25 Nasdaq close, how should a holder weigh Meta's strong Q1 results, higher AI infrastructure spending guidance and the observed next-session selloff?",
+  "evidence": [
+    {
+      "id": "meta-q1-results",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1326801/000132680124000044/meta-03312024xexhibit991.htm",
+      "available_at": "2024-04-24T16:07:26-04:00",
+      "text": "Meta reported Q1 revenue of USD 36.455 billion, up 27% year over year, and operating income of USD 13.818 billion, up 91%. Operating margin was 38% versus 25%. Reported non-GAAP free cash flow was USD 12.531 billion versus USD 6.911 billion. These are historical quarterly results.",
+      "metrics": {
+        "q1_revenue_usd_millions": 36455,
+        "q1_revenue_yoy_pct": 27,
+        "q1_operating_income_usd_millions": 13818,
+        "q1_operating_income_yoy_pct": 91,
+        "q1_operating_margin_pct": 38,
+        "prior_year_q1_operating_margin_pct": 25,
+        "q1_free_cash_flow_usd_millions": 12531,
+        "prior_year_q1_free_cash_flow_usd_millions": 6911
+      }
+    },
+    {
+      "id": "meta-ai-capex-guidance",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/1326801/000132680124000044/meta-03312024xexhibit991.htm",
+      "available_at": "2024-04-24T16:07:26-04:00",
+      "text": "Management raised 2024 capital expenditure guidance from USD 30–37 billion to USD 35–40 billion, linking the increase to infrastructure for its AI roadmap. It also updated the full-year expense range to USD 96–99 billion from USD 94–99 billion, citing infrastructure and legal costs, and guided to USD 36.5–39 billion of Q2 revenue. The release did not quantify incremental cash flows attributable to the higher AI investment.",
+      "metrics": {
+        "prior_fy2024_capex_low_usd_billions": 30,
+        "prior_fy2024_capex_high_usd_billions": 37,
+        "updated_fy2024_capex_low_usd_billions": 35,
+        "updated_fy2024_capex_high_usd_billions": 40,
+        "fy2024_expenses_low_usd_billions": 96,
+        "fy2024_expenses_high_usd_billions": 99,
+        "q2_revenue_guidance_low_usd_billions": 36.5,
+        "q2_revenue_guidance_high_usd_billions": 39
+      }
+    },
+    {
+      "id": "meta-regular-session-close",
+      "source_url": "https://www.quantellect.ai/us/stocks/nasdaq/meta/price-history/2024-04",
+      "available_at": "2024-04-25T16:00:00-04:00",
+      "text": "META's Nasdaq-listed common shares closed the April 25 U.S. regular session at USD 441.38 versus USD 493.50 on April 24. The April 25 session opened at USD 421.40. These are unadjusted prices for the observed sessions.",
+      "metrics": {
+        "meta_open_usd": 421.4,
+        "meta_close_usd": 441.38,
+        "meta_previous_close_usd": 493.5
+      }
+    },
+    {
+      "id": "meta-sp500-close",
+      "source_url": "https://fred.stlouisfed.org/data/SP500",
+      "available_at": "2024-04-25T16:00:00-04:00",
+      "text": "The S&P 500 U.S. price index closed the regular session at 5,048.42 on April 25, 2024, versus 5,071.63 on April 24. Availability denotes the session close; the historical series is syndicated by FRED.",
+      "metrics": {
+        "sp500_close_index_points": 5048.42,
+        "sp500_previous_close_index_points": 5071.63
+      }
+    },
+    {
+      "id": "meta-stock-price-window",
+      "source_url": "https://query1.finance.yahoo.com/v8/finance/chart/META?period1=1704067200&period2=1714089600&interval=1d&events=div%2Csplits",
+      "available_at": "2024-04-25T16:00:00-04:00",
+      "data_file": "meta_market_60d.csv",
+      "text": "META U.S. regular-session daily OHLCV for 60 trading sessions, 2024-01-31 through 2024-04-25, inclusive. Prices are Yahoo quote-series USD values rounded to cents; cash distributions are excluded and Yahoo reports no split in the fetched window. Returns use close-to-close observations. Availability refers to market observation dates; the archive may contain subsequent corrections.",
+      "metrics": {
+        "sessions": 60,
+        "first_close": 390.14,
+        "last_close": 441.38,
+        "return_1_session_pct": -10.5613,
+        "return_5_sessions_pct": -12.0407,
+        "return_20_sessions_pct": -10.6265,
+        "return_59_sessions_pct": 13.1337,
+        "mean_close_20_sessions": 500.004,
+        "mean_close_60_sessions": 487.7163,
+        "return_20_sessions_vs_sp500_pp": -6.8145,
+        "return_20_sessions_vs_sector_pp": -5.9438,
+        "cutoff_volume_shares": 82890700,
+        "preceding_20_sessions_mean_volume_shares": 15348390,
+        "cutoff_volume_vs_preceding_20_sessions_mean_ratio": 5.4006
+      }
+    },
+    {
+      "id": "meta-sector-price-window",
+      "source_url": "https://query1.finance.yahoo.com/v8/finance/chart/XLC?period1=1704067200&period2=1714089600&interval=1d&events=div%2Csplits",
+      "available_at": "2024-04-25T16:00:00-04:00",
+      "data_file": "meta_market_60d.csv",
+      "text": "XLC (Communication Services Select Sector SPDR ETF, NYSE Arca) is the sector proxy. Its USD regular-session OHLCV aligns to the stock and S&P 500 dates, 2024-01-31 through 2024-04-25, inclusive. Returns use ETF market prices without cash distributions; XLC prices are not a sector index or fund NAV. Yahoo reports no split in the fetched window.",
+      "metrics": {
+        "sessions": 60,
+        "first_close": 75.88,
+        "last_close": 77.96,
+        "return_1_session_pct": -3.5626,
+        "return_5_sessions_pct": -2.9745,
+        "return_20_sessions_pct": -4.6827,
+        "return_59_sessions_pct": 2.7412,
+        "mean_close_20_sessions": 81.1775,
+        "mean_close_60_sessions": 80.0788,
+        "return_20_sessions_vs_sp500_pp": -0.8707
+      }
+    },
+    {
+      "id": "meta-sp500-price-window",
+      "source_url": "https://fred.stlouisfed.org/data/SP500",
+      "available_at": "2024-04-25T16:00:00-04:00",
+      "data_file": "meta_market_60d.csv",
+      "text": "S&P 500 daily regular-session closing price-index levels in index points, 2024-01-31 through 2024-04-25, inclusive. The 60 observations span 59 return intervals. The benchmark excludes dividends; stock and sector excess returns are percentage-point differences from the matching benchmark price return.",
+      "metrics": {
+        "sessions": 60,
+        "first_close": 4845.65,
+        "last_close": 5048.42,
+        "return_1_session_pct": -0.4576,
+        "return_5_sessions_pct": 0.7443,
+        "return_20_sessions_pct": -3.812,
+        "return_59_sessions_pct": 4.1846,
+        "mean_close_20_sessions": 5123.8685,
+        "mean_close_60_sessions": 5095.3225
+      }
+    }
+  ],
+  "missing_fields": [
+    "pre_release_consensus",
+    "quantified_incremental_ai_cash_flows",
+    "portfolio_weight_cash_and_risk_limits"
+  ],
+  "mock_reviews": [
+    {
+      "issues": [
+        {
+          "id": "meta-capex-cash-flow-interpretation",
+          "kind": "interpretation",
+          "material": true,
+          "claim": "Whether the higher AI capex shifts the medium-term return thesis depends on monetization assumptions and cash-flow sensitivity. Reconcile the historical operating and free-cash-flow improvements with higher forward capex and the subsequent relative selloff. Explain which evidence would distinguish temporary repricing from weaker fundamentals.",
+          "roles": ["fundamental", "price_trading", "event_attention"],
+          "evidence_ids": [
+            "meta-q1-results",
+            "meta-ai-capex-guidance",
+            "meta-regular-session-close",
+            "meta-sp500-close"
+          ]
+        }
+      ]
+    },
+    {
+      "issues": []
+    }
+  ]
+}
