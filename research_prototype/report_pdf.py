@@ -11,7 +11,9 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import Paragraph, SimpleDocTemplate
+from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Table, TableStyle
+
+from .coverage import APPENDIX_TABLE_HEADER, CAUTION_STATUS, GAP_STATUS, STATUS
 
 
 FONT = "ResearchKorean"
@@ -22,6 +24,8 @@ INK = colors.HexColor("#27394a")
 BLUE = colors.HexColor("#185c88")
 MUTED = colors.HexColor("#526779")
 LINE = colors.HexColor("#d9e3ec")
+MISSING = colors.HexColor("#a21b27")
+CAUTION = colors.HexColor("#835308")
 
 
 def register_fonts():
@@ -60,7 +64,46 @@ def paragraph_markup(line):
             fragments.append(escape(unescape(literal)))
         start = match.end()
     fragments.append(escape(unescape(line[start:])))
-    return "".join(fragments)
+    # The embedded Korean font can omit U+2212, making losses look positive.
+    return "".join(fragments).replace("\u2212", "-")
+
+
+def appendix_table(rows, body, width):
+    cell = ParagraphStyle("table-cell", parent=body, fontSize=9.3, leading=12.4, spaceAfter=0)
+    header = ParagraphStyle("table-header", parent=cell, fontName=FONT_BOLD, textColor=colors.white)
+    gap = ParagraphStyle("table-gap", parent=cell, textColor=MISSING)
+    caution = ParagraphStyle("table-caution", parent=cell, textColor=CAUTION)
+    gap_labels = {STATUS[status] for status in GAP_STATUS}
+    caution_labels = {STATUS[status] for status in CAUTION_STATUS}
+    cells = []
+    for index, row in enumerate(rows):
+        paragraphs = []
+        for column, value in enumerate(row):
+            style = header if index == 0 else cell
+            if index > 0 and column == 2:
+                label = value.strip("*")
+                if label in gap_labels:
+                    style = gap
+                elif label in caution_labels:
+                    style = caution
+            paragraphs.append(Paragraph(paragraph_markup(value), style))
+        cells.append(paragraphs)
+    widths_by_header = {
+        ("종목", "검토 단계", "결과 구분", "핵심 이유"): (0.27, 0.13, 0.16, 0.44),
+        ("중요도", "자료·분석기간", "수집 상태", "판단 영향"): (0.08, 0.22, 0.12, 0.58),
+    }
+    proportions = widths_by_header.get(tuple(rows[0]) if rows else (), (0.23, 0.34, 0.25, 0.18))
+    table = Table(cells, colWidths=[width * part for part in proportions],
+                  repeatRows=1, hAlign="LEFT", spaceAfter=8)
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), NAVY),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f3f7fb")]),
+        ("LINEBELOW", (0, 0), (-1, -1), 0.35, LINE),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    return table
 
 
 def write_pdf(path, markdown):
@@ -76,17 +119,43 @@ def write_pdf(path, markdown):
                               textColor=BLUE, spaceBefore=8, spaceAfter=5, keepWithNext=True),
         "-": ParagraphStyle("bullet", parent=body, leftIndent=12, firstLineIndent=-12),
         "  -": ParagraphStyle("nested", parent=body, leftIndent=22, firstLineIndent=-12),
+        ">": ParagraphStyle("decision", parent=body, backColor=colors.HexColor("#edf4f9"), borderPadding=7,
+                            leftIndent=7, textColor=NAVY, spaceBefore=3, spaceAfter=8),
     }
-    title = markdown.splitlines()[0].removeprefix("# ")
+    decision_header = ParagraphStyle("decision-header", parent=styles[">"], keepWithNext=True)
+    lines = markdown.splitlines()
+    title = lines[0].removeprefix("# ")
+    document = SimpleDocTemplate(str(path), pagesize=A4, leftMargin=52, rightMargin=52, topMargin=50,
+                                 bottomMargin=59, title=title)
     story = []
-    for line in markdown.splitlines():
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        index += 1
         if not line.strip():
             continue
-        match = re.match(r"^(#{1,3}|  -|-) (.*)", line)
+        if line == "<!-- pagebreak -->":
+            story.append(PageBreak())
+            continue
+        if (line in {APPENDIX_TABLE_HEADER, "| 종목 | 검토 단계 | 결과 구분 | 핵심 이유 |",
+                     "| 중요도 | 자료·분석기간 | 수집 상태 | 판단 영향 |"}
+                and index < len(lines) and lines[index] == "| --- | --- | --- | --- |"):
+            raw_rows = [line]
+            index += 1
+            while index < len(lines) and lines[index].startswith("| ") and lines[index].endswith(" |"):
+                raw_rows.append(lines[index])
+                index += 1
+            rows = [[cell.strip() for cell in row.strip("|").split("|")] for row in raw_rows]
+            story.append(appendix_table(rows, body, document.width - 12))
+            continue
+        match = re.match(r"^(#{1,3}|  -|-|>) (.*)", line)
         if match:
             prefix, content = match.groups()
             markup = ("• " if prefix.endswith("-") else "") + paragraph_markup(content)
-            story.append(Paragraph(markup, styles[prefix]))
+            if prefix == ">" and content.startswith("**") and index < len(lines) and lines[index].startswith("> "):
+                story.append(Paragraph(markup, decision_header))
+            else:
+                story.append(Paragraph(markup, styles[prefix]))
         else:
             story.append(Paragraph(paragraph_markup(line), body))
 
@@ -100,6 +169,4 @@ def write_pdf(path, markdown):
         canvas.drawRightString(A4[0] - document.rightMargin, 28, str(document.page))
         canvas.restoreState()
 
-    document = SimpleDocTemplate(str(path), pagesize=A4, leftMargin=52, rightMargin=52, topMargin=50,
-                                 bottomMargin=59, title=title)
     document.build(story, onFirstPage=footer, onLaterPages=footer)

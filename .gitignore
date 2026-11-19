@@ -5,6 +5,7 @@ output/
 tmp/
 reports/
 captures/
+.business_cache/
 evidence.json
 *.pdf
 *.csv

@@ -177,7 +177,8 @@ class Week3Tests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertEqual(output["sections"][0]["final"], final)
         self.assertEqual(output["week3"]["operations"]["this_run"]["calls"], 0)
-        self.assertIn("잠정 행동 제안 **축소**", report.split("## META 판단 요약")[1].split("## META\n")[0])
+        label = "META (Meta Platforms, Inc.)"
+        self.assertIn("잠정 행동 제안 **축소**", report.split(f"## {label} 판단 요약")[1].split(f"## {label}\n")[0])
         self.assertIn("대안 행동 **유지**", report)
         self.assertIn("최종 판단에서 더 무게를 둔 근거", report)
         self.assertIn("| Next close | Momentum improves | Review |", report)

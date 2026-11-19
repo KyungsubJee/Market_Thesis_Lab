@@ -9,10 +9,13 @@ import re
 from urllib.parse import urlsplit
 from uuid import uuid4
 
-from framework_validation.optimized_runner import run_optimized, summarize_calls
+from framework_validation.optimized_runner import evidence_cutoff, run_optimized, summarize_calls
 from framework_validation.runner import load_fixture, parse_timestamp
 
 from .events import EVENT_PREFIX, reaction_sentence
+from .coverage import KOREA_TIME, STATUS, event_summary, public_comparison_lines, public_url, render_public_coverage
+from .instruments import holding_label
+from .source_review import session_review_views
 
 ACTIONS = {
     "maintain": "유지",
@@ -82,7 +85,7 @@ def source_index(fixture):
         if not isinstance(evidence_id, str) or not evidence_id or evidence_id in seen:
             raise ValueError(f"Invalid or duplicate evidence ID: {evidence_id}")
         seen.add(evidence_id)
-        if parse_timestamp(source["available_at"]) > cutoff:
+        if parse_timestamp(source["available_at"]) > evidence_cutoff(fixture, source):
             continue
         url = source["source_url"]
         parsed = urlsplit(url)
@@ -263,11 +266,282 @@ def render_reassessment(checks, sources):
     return rows
 
 
-def render_report(run):
+DECISION_FIELDS = (
+    ("issue", "왜 지금 봐야 하나"), ("current", "현재 상태"), ("outlook", "앞으로의 전망"),
+    ("counterargument", "가장 강한 반론"), ("reassessment", "다시 판단할 기준"),
+)
+BENCHMARK_NAMES = {
+    "SPY": "S&P 500", "SOXX": "미국 반도체", "UNG": "미국 천연가스 선물",
+    "XLK": "미국 기술주", "XLI": "미국 산업재", "XLV": "미국 헬스케어", "XLP": "미국 필수소비재",
+    "091160": "KODEX 반도체", "069500": "KODEX 200", "133690": "TIGER 미국나스닥100",
+}
+PAST_ACTION = re.compile(r"\b기존\s+(축소|확대|매도|유지)\s+판단을\s+유지(한다|합니다)")
+ACTION_IN_RECHECK = re.compile(r"(?<!\w)(유지|확대|축소|매도)(?:\s+판단)?(?:를|을|로)?\s*(?:재검토|검토)")
+
+
+def normalize_decision_text(value):
+    verbs = {"축소": "비중을 축소", "확대": "비중을 확대", "매도": "매도", "유지": "보유를 유지"}
+    value = PAST_ACTION.sub(lambda match: verbs[match[1]] + match[2], value)
+    return re.sub(r"\b기존\s+보유를\s+유지(한다|합니다)", r"보유를 유지\1", value)
+
+
+def decision_benchmarks(lines):
+    body = "\n".join(lines)
+    names = [f"{ticker}({one_line(name)})" for ticker, name in BENCHMARK_NAMES.items()
+             if re.search(rf"(?<![A-Za-z0-9]){ticker}(?![A-Za-z0-9])", body)]
+    return f"- 비교에 쓰는 ETF · {' · '.join(names)}" if names else None
+
+
+def decision_time(value):
+    return parse_timestamp(value).astimezone(KOREA_TIME).strftime("%Y-%m-%d %H:%M") if value else "미확인"
+
+
+def decision_heading(run, title):
+    lines = [f"# {title}", "", f"- 가격·공시 등 기초 분석 기준 · {decision_time(run.get('as_of'))} (한국시간)"]
+    if public_cutoff := run.get("qualitative_as_of"):
+        lines.append(f"- 뉴스·공개 의견 검토 기준 · {decision_time(public_cutoff)} (한국시간)")
+    lines.append("- [원문·수집 상태·검토 기록](evidence.json)")
+    return lines
+
+
+def decision_links(evidence_ids, sources, *, limit=None):
+    links = {}
+    for key in evidence_ids:
+        source = sources.get(key, {})
+        if not (url := public_url(source)) or url in links:
+            continue
+        publisher = source.get("publisher") or source.get("source_name")
+        if symbol := source.get("market_symbol"):
+            label = f"{symbol} 시세"
+        elif source.get("form") == "issuer_release":
+            label = "기업 실적 발표"
+        elif form := source.get("form"):
+            label = f"SEC {form}"
+        elif source.get("category") == "etf_product" or key.endswith("fund-terms"):
+            label = "운용사 상품 설명"
+        elif publisher:
+            label = publisher
+        else:
+            label = urlsplit(url).hostname.removeprefix("www.")
+        # Source labels come from external text. Keep the Markdown link syntax intact.
+        label = one_line(label).replace("[", "&#91;").replace("]", "&#93;")
+        links[url] = f"[{label}](<{url}>)"
+        if limit is not None and len(links) >= limit:
+            break
+    return " · ".join(links.values())
+
+
+def decision_statement(field, sources):
+    value = reader_line(field.get("text", ""))
+    if value and (links := decision_links(field.get("evidence_ids", []), sources, limit=2)):
+        return value + " · " + links
+    return value
+
+
+def decision_macro_lines(run, sources, *, markets=("US", "KR")):
+    macro = run.get("decision_macro") or {}
+    rows = []
+    if "text" in macro:
+        rows = [decision_statement(macro, sources)]
+    else:
+        names = {"US": "미국", "KR": "한국"}
+        for country in markets:
+            if statement := decision_statement(macro.get(country, {}), sources):
+                rows.append(f"{names[country]} · {statement}")
+    rows = [row for row in rows if row]
+    return ["", "## 공통 거시·시장", "", *(f"- {row}" for row in rows)] if rows else []
+
+
+def decision_core_sources(evidence_ids, sources):
+    candidates = list(dict.fromkeys(key for key in evidence_ids if public_url(sources.get(key, {}))))
+
+    def group(key):
+        source = sources[key]
+        if source.get("category") in {"etf_product", "etf_prospectus"} or key.endswith("fund-terms"):
+            return "structure"
+        if source.get("form") in {"10-Q", "10-K", "10-Q/A", "10-K/A"}:
+            return "financial"
+        if source.get("category") == "sec_periodic" or key.endswith(("-quarter", "-annual")):
+            return "financial"
+        if source.get("market_symbol") or source.get("category") == "etf_comparison":
+            return "price"
+        return "qualitative"
+
+    def best(keys):
+        # Prefer the legal risk document, then issuer disclosure, over headline-only sources.
+        return min(keys, key=lambda key: (
+            0 if sources[key].get("form") == "497K" else
+            1 if sources[key].get("form") or sources[key].get("category") in {"etf_product", "supplemental_official_source"}
+            or key.endswith("fund-terms") else 2,
+            candidates.index(key),
+        ))
+
+    groups = {name: [key for key in candidates if group(key) == name]
+              for name in ("structure", "financial", "price", "qualitative")}
+    if groups["structure"]:
+        selected = [best(groups["structure"])]
+        other = groups["price"] or groups["financial"] or groups["qualitative"]
+    else:
+        selected = [best(groups["financial"] or groups["price"])] if groups["financial"] or groups["price"] else []
+        other = groups["qualitative"]
+    if other:
+        selected.append(best(other))
+    if not selected:
+        selected = [best(candidates)] if candidates else []
+    return selected
+
+
+def decision_brief_lines(brief, sources, action_label, action, *, blocked=False, tentative=False):
+    lines = [f"> **{action_label} · {action}**"]
+    proposal = reader_line(normalize_decision_text(brief.get("proposal", {}).get("text", "")))
+    if not blocked and proposal and not tentative:
+        lines.append(f"> {proposal}")
+    if not blocked and (alternative := brief.get("proposed_action")) and alternative != brief.get("action"):
+        alternative = ACTIONS.get(alternative, {"research": "추가 조사", "monitor": "관찰", "defer": "보류"}.get(alternative))
+        if alternative:
+            lines.append(f"- **독립 검토 전 대안** · {alternative}")
+    for key, label in DECISION_FIELDS:
+        if statement := reader_line(normalize_decision_text(brief.get(key, {}).get("text", ""))):
+            lines.append(f"- **{label}** · {statement}")
+    if not brief:
+        lines.append("- 통합 판단을 작성할 수 없었습니다. 근거 기록에서 저장된 결과를 확인할 수 있습니다.")
+    fields = ["current", "issue", "counterargument", "outlook", "reassessment"]
+    if not blocked and not tentative and proposal:
+        fields.insert(0, "proposal")
+    evidence_ids = [ref for field in fields for ref in brief.get(field, {}).get("evidence_ids", [])
+                    if brief.get(field, {}).get("text")]
+    if refs := decision_links(decision_core_sources(evidence_ids, sources), sources, limit=2):
+        lines.append(f"- 핵심 출처 · {refs}")
+    return lines
+
+
+def decision_gap_lines(ticker_coverage, brief, *, horizon=None):
+    relevant = {"필수", "비교 시 필수", "이슈 판단 시 필수"}
+    if horizon == "medium":
+        relevant.add("중기 판단 시 필수")
+    elif horizon == "long":
+        relevant.add("장기 판단 시 필수")
+    required_gaps = [
+        f"{one_line(label)} {STATUS[status]}"
+        for importance, label, status, _ in ticker_coverage.get("checks", [])
+        if (importance in relevant
+            and status in {"missing", "partial", "stale", "failed", "metadata_only"})
+    ]
+    if brief.get("missing_evidence_ids") and not required_gaps:
+        required_gaps.append("판단에 필요한 일부 근거를 확인하지 못했습니다.")
+    return ["- **판단을 제한한 자료 공백** · " + " · ".join(required_gaps)] if required_gaps else []
+
+
+def decision_source_index(sources, public_context):
+    return {**sources, **{item["id"]: item for item in public_context.get("items", []) if item.get("id")}}
+
+
+def holding_action(section, status, brief):
+    blocked = bool(status.get("blocking") or section.get("path") == "blocked" or brief.get("status") == "blocked")
+    original = (section.get("final") or {}).get("action")
+    action = ACTIONS.get(original) if brief and not blocked and brief.get("action") == original else None
+    tentative = action and (status.get("review_required") or section.get("status") != "complete"
+                            or brief.get("status") != "complete")
+    return action, tentative
+
+
+def restore_action_conditions(brief, final):
+    current = brief.get("reassessment", {}).get("text", "")
+    used = set(ACTION_IN_RECHECK.findall(current))
+    retained = []
+    for condition in final.get("reassessment_conditions", []):
+        actions = set(ACTION_IN_RECHECK.findall(condition))
+        if actions - used:
+            retained.append(reader_line(condition))
+            used.update(actions)
+    return [f"- **행동을 바꿀 조건** · {condition}" for condition in retained]
+
+
+def render_decision_holdings(run, public_context):
+    if "source_verification_notes" not in run:
+        briefs, notes, audits = session_review_views(run["sections"], run["decision_briefs"], run["as_of"])
+        run = {**run, "decision_briefs": briefs, "source_verification_notes": notes, "session_review_audits": audits}
+    coverage = run.get("coverage", {}).get("tickers", {})
+    labels = {section["ticker"]: coverage.get(section["ticker"], {}).get("label")
+              or holding_label(section["ticker"], section["sources"].values()) for section in run["sections"]}
+    lines = decision_heading(run, "보유 종목 연구 보고서")
+    lines.append(f"- 분석 대상 · 보유 종목 {len(run['sections'])}개")
+    overview = {}
+    for section in run["sections"]:
+        ticker = section["ticker"]
+        action, tentative = holding_action(section, coverage.get(ticker, {}), run["decision_briefs"].get(ticker, {}))
+        label = f"잠정 {action}" if tentative else action or "판단 보류"
+        overview.setdefault(label, []).append(one_line(labels[ticker]))
+    if overview:
+        lines.extend(["", "## 현재 행동 제안", "", *(f"- **{label}** · {', '.join(tickers)}" for label, tickers in overview.items())])
+    limits = []
+    groups = {"price": [], "filing": [], "issues": [], "session_review": [], "dated": []}
+    for section in run["sections"]:
+        ticker = section["ticker"]
+        status = coverage.get(ticker, {})
+        if any(key.endswith("stock-price-window") for key in status.get("blocking", [])):
+            groups["price"].append(labels[ticker])
+        if status.get("filing", {}).get("status") == "metadata_only":
+            groups["filing"].append(labels[ticker])
+        elif ticker in run.get("source_verification_notes", {}):
+            groups["session_review"].append(labels[ticker])
+        elif section.get("status") == "review_required" and not status.get("blocking") and section.get("path") != "blocked":
+            groups["issues"].append(labels[ticker])
+        if any("기존 공식 자료" in label and check_status == "partial"
+               for _, label, check_status, _ in status.get("checks", [])):
+            groups["dated"].append(labels[ticker])
+    descriptions = {
+        "price": "정규장 종가 검증 자료가 부족해 행동 판단을 보류했습니다.",
+        "filing": "중요 공시의 접수 정보만 확보해 사건 판단과 행동 제안이 잠정입니다.",
+        "issues": "중요 쟁점이 남아 행동 제안이 잠정입니다.",
+        "session_review": "최신 정규장 종가는 대조됐습니다. 모델의 세션 미확인 전제를 바로잡고 기존 행동 제안은 잠정으로 표시했습니다.",
+        "dated": "일부 공식 자료를 이번 조회에서 완전히 재확인하지 못해 원래 공개일과 관측기간을 유지했습니다.",
+    }
+    for key, tickers in groups.items():
+        if tickers:
+            limits.append(f"- **{', '.join(map(one_line, tickers))}** · {descriptions[key]}")
+    if limits:
+        lines.extend(["", "## 판단 제한", "", *limits])
+    shared_sources = {key: item for section in run["sections"] for key, item in section["sources"].items()}
+    legend_position = len(lines)
+    lines.extend(decision_macro_lines(run, shared_sources))
+    for section in run["sections"]:
+        ticker = section["ticker"]
+        status = coverage.get(ticker, {})
+        brief = run["decision_briefs"].get(ticker, {})
+        lines.extend(["", f"## {one_line(labels[ticker])}", "",
+                      f"- 분석 기간 {HORIZONS.get(section.get('horizon'), '미확인')}"])
+        if section.get("as_of") and section["as_of"] != run.get("as_of"):
+            lines.append(f"- 종목 기준 · {decision_time(section['as_of'])} (한국시간)")
+        action, tentative = holding_action(section, status, brief)
+        sources = decision_source_index(section["sources"], public_context.get(ticker, {}))
+        if notice := run.get("source_verification_notes", {}).get(ticker):
+            lines.append("- **수집 근거 확인** · " + notice)
+        lines.extend(decision_brief_lines(brief, sources, "잠정 행동 제안" if tentative else "행동 제안",
+                                          action or "판단 보류", blocked=not action, tentative=tentative))
+        if action:
+            lines.extend(restore_action_conditions(brief, section["final"]))
+        lines.extend(decision_gap_lines(status, brief))
+    if legend := decision_benchmarks(lines):
+        lines.insert(legend_position, legend)
+    return "\n".join(lines) + "\n"
+
+
+def render_report(run, qualitative_findings=None, public_context=None):
+    if "decision_briefs" in run:
+        return render_decision_holdings(run, public_context or {})
     live = run.get("source_mode") == "us-live"
     plain = run.get("events_requested", False)
     text = reader_line if plain else one_line
     presentation = run.get("presentation")
+    coverage = run.get("coverage", {})
+    qualitative_findings = qualitative_findings or {}
+    public_context = public_context or {}
+    labels = {
+        section["ticker"]: coverage.get("tickers", {}).get(section["ticker"], {}).get("label")
+        or holding_label(section["ticker"], section["sources"].values())
+        for section in run["sections"]
+    }
     lines = [
         "# 보유 종목 연구 보고서",
         "",
@@ -277,7 +551,7 @@ def render_report(run):
         action = ACTIONS.get(section["final"]["action"], "판단 보류")
         label = "잠정 행동 제안" if section["status"] != "complete" and action != "판단 보류" else "행동 제안"
         lines.extend([
-            f"## {one_line(section['ticker'])} 판단 요약",
+            f"## {one_line(labels[section['ticker']])} 판단 요약",
             "",
             f"- {label} **{action}**",
             f"- 적용 범위 {one_line(presentation['applicability'])}",
@@ -291,7 +565,9 @@ def render_report(run):
         f"- 실행 ID `{run['run_id']}`",
         *([f"- 분석 기준 UTC `{run['as_of']}`"] if run.get("as_of") else []),
         f"- 생성 시각 `{run['generated_at']}`",
+        *([f"- 공개 자료 검토 기준 UTC `{run['qualitative_as_of']}`"] if run.get("qualitative_as_of") else []),
         f"- 모델 `{run['model_requested']}`",
+        *(["- 보유 종목 · " + ", ".join(map(one_line, labels.values()))] if coverage and labels else []),
         "- [근거·검토·호출 기록](evidence.json)",
         "",
         (
@@ -300,11 +576,19 @@ def render_report(run):
             if live else "종목별로 표시한 과거 분석 기준 시각까지의 고정 자료를 사용했습니다."
         ),
     ])
+    if coverage.get("notices"):
+        lines.extend(["", "## 판단 전에 확인할 사항", "", *(f"- {one_line(notice)}" for notice in coverage["notices"])])
+    lines.extend(public_comparison_lines(run.get("public_comparison")))
     for section in run["sections"]:
         status = section["status"]
         sources = section["sources"]
         final = section["final"]
-        lines.extend(["", f"## {one_line(section['ticker'])}", ""])
+        ticker_coverage = coverage.get("tickers", {}).get(section["ticker"], {})
+        if ticker_coverage.get("blocking"):
+            status, final = "review_required", None
+        elif status == "complete" and ticker_coverage.get("review_required"):
+            status = "review_required"
+        lines.extend(["", f"## {one_line(labels[section['ticker']])}", ""])
         if "as_of" in section:
             lines.extend([
                 f"- 분석 기준 시각 `{section['as_of']}`",
@@ -344,6 +628,14 @@ def render_report(run):
         elif not section.get("error"):
             lines.append("- 행동 제안 **판단 보류**")
 
+        ticker = section["ticker"]
+        public_lines = render_public_coverage(
+            public_context.get(ticker), qualitative_findings.get(ticker),
+            blocked=section.get("path") == "blocked" or not final or final.get("action") == "review_required",
+        )
+        if public_lines:
+            lines.extend(["", "### 최근 보도와 공개 투자자 의견", "", *public_lines])
+
         role_outputs = {
             entry["role"]: entry["output"] for entry in section.get("trace", [])
             if entry["stage"] == "analysis" and "output" in entry
@@ -359,7 +651,7 @@ def render_report(run):
             elif events:
                 lines.append("확인한 공시와 보도 가운데 현재 판단에 반영할 내용을 제시하지 못했습니다.")
             else:
-                lines.append("이 분석에서 확인한 주요 공시 본문이나 보도가 없습니다.")
+                lines.append(event_summary(ticker_coverage))
             reactions = dict.fromkeys(reaction_sentence(item["reaction"]) for item in events
                                       if item["id"] in event_ids and item["reaction"])
             lines.extend(f"- {reaction}" for reaction in reactions)

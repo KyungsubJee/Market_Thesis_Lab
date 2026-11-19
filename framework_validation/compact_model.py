@@ -79,7 +79,7 @@ def evidence_category(evidence_id):
         return "macro"
     if evidence_id.startswith("event-context-"):
         return "event_context"
-    if "sp500" in evidence_id:
+    if "sp500" in evidence_id or evidence_id == "kr-kospi-price-window":
         return "benchmark"
     if "sector-price-window" in evidence_id:
         return "sector"
@@ -121,9 +121,13 @@ def compact_context(role, stage, context):
     payload = {key: context[key] for key in ("as_of", "ticker", "horizon", "question", "missing_fields") if key in context}
     evidence = context["evidence"]
     if stage == "analysis":
+        reaction_sources = {
+            source_id for key, item in evidence.items() if evidence_category(key) == "event_context"
+            for source_id in (item.get("reaction") or {}).get("evidence_ids", [])
+        } if role == "event_attention" else set()
         evidence = {
             key: value for key, value in evidence.items()
-            if evidence_category(key) is None or role in MARKET_ROLES[evidence_category(key)]
+            if key in reaction_sources or evidence_category(key) is None or role in MARKET_ROLES[evidence_category(key)]
         }
         if role == "fundamental" and any(key.endswith("regular-session-close") for key in evidence):
             evidence = {key: value for key, value in evidence.items() if not key.endswith("stock-price-window")}

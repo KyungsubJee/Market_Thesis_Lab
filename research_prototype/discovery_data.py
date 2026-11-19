@@ -2,7 +2,7 @@
 
 from concurrent.futures import ThreadPoolExecutor
 import csv
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from hashlib import sha256
 from io import BytesIO, StringIO
 import re
@@ -15,7 +15,8 @@ from zoneinfo import ZoneInfo
 
 from .us_data import (
     FRED_SERIES, PublicClient, SEC_SAMPLE_CIKS, SEC_TICKERS, capture,
-    filing_metrics, filing_record, fred_records, fred_url, lookup_sec_cik, market_record, quote_url, sec_filings, utc_now,
+    FACT_TAGS, filing_metrics, filing_record, fred_records, fred_url, lookup_sec_cik, market_record, quote_url,
+    sec_filings, utc_now, valid_number,
 )
 
 
@@ -193,23 +194,23 @@ def get_discovery_filings(ticker, cik, client):
         raise ValueError("SEC Submissions did not confirm ticker and issuer")
     facts, fetched = client.json(facts_url, sec=True)
     filings = sec_filings(submission, max(submitted, fetched))
+    quarter = next((row for row in filings if row["form"] == "10-Q"), None)
+    annual = next((row for row in filings if row["form"] == "10-K"), None)
+    q4_expected = bool(annual and (not quarter or annual["report_date"] >= quarter["report_date"]))
     evidence = []
     metrics = {}
-    for form, label in (("10-Q", "quarter"), ("10-K", "annual")):
-        filing = next((row for row in filings if row["form"] == form), None)
+    for filing, label in ((quarter, "quarter"), (annual, "annual")):
         if not filing:
             continue
         item = filing_record(ticker, cik, filing, max(submitted, fetched), submissions_url=submissions_url,
                              facts=facts, facts_url=facts_url)
-        if not item["metrics"]:
-            continue
         item["id"] = f"sec-{ticker.lower()}-{label}"
         evidence.append(item)
         values = item["metrics"]
         revenue = values.get("revenue_usd")
         if not revenue or revenue <= 0:
             continue
-        if form == "10-Q":
+        if label == "quarter" and not q4_expected:
             end = date.fromisoformat(filing["report_date"])
             tag = item["fact_periods"]["revenue_usd"]["tag"]
             rows = facts["facts"]["us-gaap"][tag]["units"]["USD"]
@@ -223,9 +224,98 @@ def get_discovery_filings(ticker, cik, client):
                     metrics["quarter_revenue_yoy_pct"] = (revenue / prior["revenue_usd"] - 1) * 100
             if "operating_income_usd" in values:
                 metrics["quarter_operating_margin_pct"] = values["operating_income_usd"] / revenue * 100
-        else:
+        elif label == "annual":
             metrics.update(long_metrics(facts, filing, item))
+    if q4_expected and quarter and (q4 := fourth_quarter_metrics(facts, annual, quarter)):
+        annual_item = next(item for item in evidence if item["id"] == f"sec-{ticker.lower()}-annual")
+        quarter_item = next(item for item in evidence if item["id"] == f"sec-{ticker.lower()}-quarter")
+        derived = {
+            "quarter_revenue_yoy_pct": (q4["metrics"]["revenue_usd"] / q4["prior_revenue_usd"] - 1) * 100,
+            "quarter_operating_margin_pct": q4["metrics"]["operating_income_usd"] / q4["metrics"]["revenue_usd"] * 100,
+        }
+        quarter_item.update(
+            form="10-K/10-Q", source_url=annual_item["source_url"], observation_date=annual["report_date"],
+            sec_acceptance_at=annual["accepted_at"], accession=annual["accession"],
+            metrics=q4["metrics"], fact_periods={}, derived_metrics=derived,
+            quarter_basis="annual_less_q3_ytd",
+            quarter_start=q4["start"], quarter_sources=[
+                {"accession": annual["accession"], "url": annual_item["source_url"]},
+                {"accession": quarter["accession"], "url": quarter_item["source_url"]},
+            ],
+            quarter_inputs=q4["inputs"],
+            text="Fiscal Q4 derived from matching SEC annual and nine-month same-start cumulative facts.",
+        )
+        metrics.update(derived)
+    latest_periodic = max((item for item in (quarter, annual) if item),
+                          key=lambda item: item["accepted_at"], default=None)
+    if latest_periodic:
+        pending = next((item for item in filings if item["form"] in {"8-K", "8-K/A"}
+                        and "2.02" in re.findall(r"\d\.\d{2}", item["items"])
+                        and item["accepted_at"] > latest_periodic["accepted_at"]
+                        and item["filing_date"] > latest_periodic["filing_date"]), None)
+        if pending:
+            latest_record = next((item for item in evidence if item["id"] == f"sec-{ticker.lower()}-quarter"), None)
+            if latest_record is None:
+                latest_record = filing_record(ticker, cik, pending, max(submitted, fetched),
+                                              submissions_url=submissions_url)
+                latest_record["id"] = f"sec-{ticker.lower()}-quarter"
+                evidence.append(latest_record)
+            latest_record["newer_results_filing"] = {
+                "accession": pending["accession"], "acceptance_at": pending["accepted_at"],
+                "filing_date": pending["filing_date"], "item": "2.02",
+            }
+            metrics.pop("quarter_revenue_yoy_pct", None)
+            metrics.pop("quarter_operating_margin_pct", None)
     return evidence, metrics
+
+
+def fourth_quarter_metrics(facts, annual, quarter):
+    """Use FY less nine-month facts with matching US GAAP tag, unit and fiscal start."""
+    gaap = facts.get("facts", {}).get("us-gaap", {})
+    end, q3 = (date.fromisoformat(filing["report_date"]) for filing in (annual, quarter))
+    if not 70 <= (end - q3).days <= 120:
+        return None
+    inputs = {}
+    for metric in ("revenue_usd", "operating_income_usd"):
+        options = []
+        for tag in FACT_TAGS[metric]:
+            rows = [row for row in gaap.get(tag, {}).get("units", {}).get("USD", [])
+                    if row.get("start") and row.get("end") and valid_number(row.get("val"))]
+            pairs = {}
+            for fy in rows:
+                if fy.get("accn") != annual["accession"]:
+                    continue
+                start, fy_end = date.fromisoformat(fy["start"]), date.fromisoformat(fy["end"])
+                if not 330 <= (fy_end - start).days <= 390:
+                    continue
+                for ytd in rows:
+                    if ytd.get("accn") != quarter["accession"] or ytd["start"] != fy["start"]:
+                        continue
+                    ytd_end = date.fromisoformat(ytd["end"])
+                    if not (70 <= (fy_end - ytd_end).days <= 120 and 240 <= (ytd_end - start).days <= 310):
+                        continue
+                    if fy_end == end and ytd_end != q3:
+                        continue
+                    pair = (fy["start"], ytd["end"], fy["val"], ytd["val"])
+                    pairs.setdefault(fy_end, set()).add(pair)
+            previous = [day for day in pairs if 350 <= (end - day).days <= 380]
+            if len(pairs.get(end, [])) == 1 and (metric != "revenue_usd" or
+                    (len(previous) == 1 and len(pairs[previous[0]]) == 1)):
+                current = next(iter(pairs[end]))
+                prior = next(iter(pairs[previous[0]])) if len(previous) == 1 and len(pairs[previous[0]]) == 1 else None
+                options.append({"tag": tag, "current": current, "prior": prior})
+        if not options:
+            return None
+        inputs[metric] = options[0]
+    revenue, operating = (inputs[key]["current"] for key in ("revenue_usd", "operating_income_usd"))
+    if revenue[:2] != operating[:2]:
+        return None
+    prior = inputs["revenue_usd"]["prior"]
+    values = {key: item["current"][2] - item["current"][3] for key, item in inputs.items()}
+    if values["revenue_usd"] <= 0 or prior[2] - prior[3] <= 0:
+        return None
+    return {"metrics": values, "prior_revenue_usd": prior[2] - prior[3], "inputs": inputs,
+            "start": (q3 + timedelta(days=1)).isoformat()}
 
 
 def long_metrics(facts, filing, item):

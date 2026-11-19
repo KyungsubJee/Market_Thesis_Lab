@@ -19,7 +19,20 @@ SNAPSHOT_INPUT_FIELDS = ("ticker", "as_of", "horizon", "question", "evidence", "
 
 def snapshot_digest(snapshot):
     input_snapshot = {key: snapshot[key] for key in SNAPSHOT_INPUT_FIELDS}
+    if "news_as_of" in snapshot:
+        input_snapshot["news_as_of"] = snapshot["news_as_of"]
     return sha256(json.dumps(input_snapshot, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+
+
+def evidence_cutoff(fixture, item):
+    base = parse_timestamp(fixture["as_of"])
+    if item.get("category") == "news_context" and fixture.get("news_as_of"):
+        public = parse_timestamp(fixture["news_as_of"])
+        if public < base:
+            raise ValueError("News cutoff precedes the frozen market cutoff")
+        if item["id"] not in fixture.get("required_evidence_ids", []):
+            return public
+    return base
 
 
 def issue_key(issue):
@@ -68,6 +81,8 @@ def run_optimized(fixture, model, *, replay=None):
         key: fixture[key]
         for key in SNAPSHOT_INPUT_FIELDS
     }
+    if "news_as_of" in fixture:
+        input_snapshot["news_as_of"] = fixture["news_as_of"]
     digest = snapshot_digest(input_snapshot)
     reused = {}
     if replay is not None:
@@ -90,7 +105,7 @@ def run_optimized(fixture, model, *, replay=None):
         if evidence_id in seen:
             raise ValueError(f"Duplicate evidence ID: {evidence_id}")
         seen.add(evidence_id)
-        if parse_timestamp(item["available_at"]) <= as_of:
+        if parse_timestamp(item["available_at"]) <= evidence_cutoff(fixture, item):
             evidence[evidence_id] = item
         else:
             excluded.append(evidence_id)

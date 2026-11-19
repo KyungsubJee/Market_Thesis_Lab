@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from pathlib import Path
 import unittest
 from unittest.mock import patch
 
@@ -19,19 +20,34 @@ class IntegratedTests(unittest.TestCase):
 
     def test_invalid_symbol_does_not_abort_held_and_discovery_collection(self):
         snapshot = {"as_of": "2026-11-16T19:00:00+00:00", "evidence": []}
-        discovered = {"as_of": "2026-11-16T20:00:00+00:00"}
+        discovered = {"as_of": "2026-11-16T20:00:00+00:00", "universe": []}
         client = SharedClient()
         with (patch("research_prototype.integrated.collect_us_snapshots",
                     return_value={"SOXL": (None, dict(snapshot))}) as holdings,
               patch("research_prototype.integrated.collect_discovery", return_value=discovered) as discovery,
               patch("research_prototype.integrated.collect_qualitative"),
+              patch("research_prototype.integrated.prepare_business") as business,
               patch("research_prototype.integrated.load_registry")):
-            frozen = collect_inputs(["BAD/SYMBOL", "SOXL"], client)
+            frozen = collect_inputs(["BAD/SYMBOL", "SOXL"], client, business_cache=Path("verified-custom-cache"))
         self.assertEqual(holdings.call_args.args[0], ["SOXL"])
         self.assertEqual(discovery.call_args.args[0], ["SOXL"])
         self.assertIn("BAD/SYMBOL", frozen["holding_errors"])
         self.assertEqual(frozen["as_of"], frozen["snapshots"]["SOXL"][1]["as_of"])
         self.assertEqual(frozen["as_of"], frozen["discovery"]["as_of"])
+        business.assert_called_once()
+        self.assertEqual(business.call_args.args[2], Path("verified-custom-cache"))
+
+    def test_business_analysis_reuses_the_configured_client_and_cache(self):
+        cutoff = "2026-11-19T08:43:10+00:00"
+        discovery = {"as_of": cutoff, "discovery_method": "business_first", "calls": []}
+        captured = {"as_of": cutoff, "snapshots": {}, "holding_errors": {}, "discovery": discovery}
+        client = SharedClient()
+        cache = Path("verified-existing-cache")
+        with patch("research_prototype.integrated.run_business") as business:
+            run_reports([], captured, "test-model", 600, True, client=client, business_cache=cache)
+        self.assertIs(business.call_args.args[1], client)
+        self.assertIsNone(business.call_args.args[2])
+        self.assertEqual(business.call_args.args[3], cache)
 
     def test_unverified_but_well_formed_symbol_blocks_without_skipping_another_symbol(self):
         cutoff = "2026-11-16T20:00:00+00:00"

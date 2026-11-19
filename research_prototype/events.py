@@ -181,22 +181,23 @@ def sec_plans(client, ticker, items, cutoff):
                                      f"{item['accession'].replace('-', '')}/index.html"}
                 for item in sec_filings(submissions, cutoff) if item["form"] == "8-K"]
     else:
-        return []
+        return None
     plans = []
     for row in rows:
         stamp = parse_timestamp(row["accepted_at"])
         codes = [item for item in re.findall(r"\d\.\d{2}", row["items"]) if item in MATERIAL_ITEMS]
         document = row["primary_document"]
-        if not codes or not document or not re.fullmatch(r"[\w.-]+\.html?", document):
+        if not codes:
             continue
         if not cutoff - timedelta(days=RECENT_DAYS) <= stamp <= cutoff:
             continue
-        url = row["source_url"].rsplit("/", 1)[0] + "/" + document
+        url = (row["source_url"].rsplit("/", 1)[0] + "/" + document
+               if document and re.fullmatch(r"[\w.-]+\.html?", document) else None)
         plans.append({"ticker": ticker, "kind": "sec_8k", "url": url, "published_at": row["accepted_at"],
                       "item_codes": codes, "accession": row["accession"]})
         if len(plans) == 2:
             break
-    return plans
+    return plans if plans or not known else None
 
 
 def relevant_headline(title, ticker, issuer_name=None, sector_terms=()):
@@ -217,9 +218,15 @@ def relevant_headline(title, ticker, issuer_name=None, sector_terms=()):
 def discover_headlines(ticker, client, cutoff, issuer_name=None, sector_terms=()):
     feed = "https://feeds.finance.yahoo.com/rss/2.0/headline?" + urlencode({"s": ticker, "region": "US", "lang": "en-US"})
     body, collected = client.text(feed)
-    root = ElementTree.fromstring(body)
+    try:
+        root = ElementTree.fromstring(body)
+    except ElementTree.ParseError as exc:
+        raise ValueError("Invalid RSS document") from exc
+    channel = root.find("./channel")
+    if root.tag.lower() != "rss" or channel is None:
+        raise ValueError("Expected a valid RSS channel")
     result = []
-    for item in root.findall("./channel/item"):
+    for item in channel.findall("./item"):
         title = item.findtext("title", "").strip()
         url = item.findtext("link", "").strip()
         summary = " ".join(source_blocks(item.findtext("description", "")))
@@ -264,8 +271,13 @@ def enrich_events(captured, client, manifest, *, discover_news=False):
     company_plans = fetch_many(sorted(ticker_set), lambda ticker: sec_plans(client, ticker, sources[ticker], cutoff))
     for ticker, (rows, error) in company_plans.items():
         if rows:
-            plans.extend(rows)
-        diagnostics.append({"ticker": ticker, "kind": "sec_8k_lookup", "status": "available" if rows else "missing",
+            for plan in rows:
+                if plan["url"]:
+                    plans.append(plan)
+                else:
+                    diagnostics.append({**plan, "status": "unavailable", "error": "Primary document unavailable"})
+        status = "failed" if error else "available" if rows else "complete_zero" if rows == [] else "not_run"
+        diagnostics.append({"ticker": ticker, "kind": "sec_8k_lookup", "status": status,
                             "error": error})
     if discover_news:
         def lookup(ticker):
@@ -274,10 +286,11 @@ def enrich_events(captured, client, manifest, *, discover_news=False):
             ) else ()
             return discover_headlines(ticker, client, cutoff, names[ticker], terms)
 
-        for ticker, (rows, error) in fetch_many(sorted(ticker_set), lookup).items():
+        for ticker, (rows, error) in fetch_many(sorted(ticker for ticker in ticker_set if not ticker.isdigit()), lookup).items():
             if rows:
                 plans.extend(rows)
-            diagnostics.append({"ticker": ticker, "kind": "headline_lookup", "status": "available" if rows else "missing",
+            diagnostics.append({"ticker": ticker, "kind": "headline_lookup",
+                                "status": "failed" if error else "available" if rows else "complete_zero",
                                 "error": error})
 
     def fetch_event(index):
@@ -303,7 +316,8 @@ def enrich_events(captured, client, manifest, *, discover_news=False):
             title, excerpt = news_excerpt(event_body, plan["title_pattern"])
         ticker = canonical_ticker(plan["ticker"])
         prices = {item.get("market_symbol"): item for item in sources[ticker] if "observations" in item}
-        sector = next((item for symbol, item in prices.items() if symbol not in {ticker, "SPY"}), None)
+        market = "KOSPI" if ticker.isdigit() else "SPY"
+        sector = next((item for symbol, item in prices.items() if symbol not in {ticker, market}), None)
         basis = {"sec_8k": "sec_acceptance_timestamp", "independent_headline": "feed_publication_timestamp"}.get(
             plan["kind"], "manifest_exact_publication" if plan.get("availability_basis") == "verified_exact_timestamp"
             or plan.get("time_basis") == "exact"
@@ -311,7 +325,7 @@ def enrich_events(captured, client, manifest, *, discover_news=False):
         )
         reaction = None
         if basis != "manifest_date_upper_bound" and kind != "independent_headline":
-            reaction = aligned_reaction(plan["published_at"], prices.get(ticker), prices.get("SPY"), cutoff_text, sector)
+            reaction = aligned_reaction(plan["published_at"], prices.get(ticker), prices.get(market), cutoff_text, sector)
         fingerprint = sha256(plan["url"].encode()).hexdigest()[:12]
         return record(
             f"{EVENT_PREFIX}{ticker.lower()}-{fingerprint}", plan["url"], collected,

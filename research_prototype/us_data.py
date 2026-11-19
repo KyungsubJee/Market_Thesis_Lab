@@ -67,6 +67,8 @@ class PublicClient:
             headers["User-Agent"] = "Mozilla/5.0"
         elif "direxion.com/" in url:
             headers["User-Agent"] = "Tauric Research Base public fund data probe"
+        elif urlsplit(url).hostname in {"fchart.stock.naver.com", "polling.finance.naver.com"}:
+            headers["User-Agent"] = "Mozilla/5.0"
         elif urlsplit(url).hostname in {
             "ca.marketscreener.com", "investors.micron.com", "www.investor.jnj.com", "www.prnewswire.com",
         }:
@@ -77,7 +79,8 @@ class PublicClient:
         }:
             headers.update({"User-Agent": "Tauric Research Base public research", "Accept": "*/*"})
         with urlopen(Request(url, headers=headers), timeout=self.timeout) as response:
-            body = response.read().decode("utf-8-sig")
+            encoding = "cp949" if urlsplit(url).hostname == "fchart.stock.naver.com" else "utf-8-sig"
+            body = response.read().decode(encoding)
         return body, utc_now()
 
     def json(self, url, *, sec=False):
